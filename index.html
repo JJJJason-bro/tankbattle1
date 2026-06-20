@@ -494,6 +494,7 @@
 
             // ==================== 游戏状态 ====================
             let gameState = 'start'; // start | playing | paused | gameover
+            let frameCount = 0;
             let score = 0;
             let lives = 3;
             let level = 1;
@@ -718,18 +719,18 @@
                                     return true;
                                 }
                             }
-                            if (tile === WATER && this.type !== 'player') {
-                                // 敌人不能过水，但玩家可以（稍微降低速度）
-                            }
                             if (tile === WATER) {
-                                const tileRect = {
-                                    left: col * TILE_SIZE,
-                                    top: row * TILE_SIZE,
-                                    right: (col + 1) * TILE_SIZE,
-                                    bottom: (row + 1) * TILE_SIZE,
-                                };
-                                if (this.rectsOverlap(b, tileRect)) {
-                                    return true;
+                                // 玩家可以通过水域（减速），敌人不能
+                                if (this.type !== 'player') {
+                                    const tileRect = {
+                                        left: col * TILE_SIZE,
+                                        top: row * TILE_SIZE,
+                                        right: (col + 1) * TILE_SIZE,
+                                        bottom: (row + 1) * TILE_SIZE,
+                                    };
+                                    if (this.rectsOverlap(b, tileRect)) {
+                                        return true;
+                                    }
                                 }
                             }
                         }
@@ -1662,7 +1663,7 @@
             }
 
             function drawWater(x, y) {
-                const time = Date.now() / 1000;
+                const time = frameCount * 0.016; // 模拟时间（基于帧计数）
                 const grad = ctx.createLinearGradient(x, y, x, y + TILE_SIZE);
                 grad.addColorStop(0, '#1a5276');
                 grad.addColorStop(0.5, '#2980b9');
@@ -1791,8 +1792,17 @@
             }
 
             function gameLoop() {
-                update();
-                render();
+                frameCount++;
+                // 帧保护：捕获异常防止游戏完全卡死
+                try {
+                    if (gameState === 'playing') {
+                        update();
+                    }
+                    render();
+                } catch (e) {
+                    console.error('游戏循环错误:', e);
+                    // 不中断循环
+                }
                 requestAnimationFrame(gameLoop);
             }
 

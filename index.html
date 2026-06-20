@@ -511,21 +511,40 @@
 
             // ==================== 键盘输入 ====================
             const keys = {};
-            window.addEventListener('keydown', e => {
-                keys[e.key] = true;
-                keys[e.code] = true;
-                if (e.key === ' ' || e.key === 'Spacebar') {
+            document.addEventListener('keydown', e => {
+                // 阻止浏览器默认行为（如空格滚动页面）
+                if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'ArrowDown' ||
+                    e.code === 'ArrowLeft' || e.code === 'ArrowRight') {
                     e.preventDefault();
                 }
-                if (e.key === 'p' || e.key === 'P') {
+                // 移动键 — 同时用 key 和 code 确保兼容
+                const keyLower = e.key?.toLowerCase?.() ?? '';
+                keys[keyLower] = true;
+                keys[e.code] = true;
+                // 暂停/继续 — 用 code 避免输入法问题
+                if (e.code === 'KeyP') {
+                    e.preventDefault();
                     togglePause();
                 }
-                if (e.key === 'r' || e.key === 'R') {
+                // 重新开始
+                if (e.code === 'KeyR') {
+                    e.preventDefault();
                     restartGame();
                 }
+                // 开始游戏（Enter键）
+                if (e.code === 'Enter' && gameState === 'start') {
+                    e.preventDefault();
+                    startGame();
+                }
+                // 从暂停恢复（Enter键）
+                if (e.code === 'Enter' && gameState === 'paused') {
+                    e.preventDefault();
+                    resumeGame();
+                }
             });
-            window.addEventListener('keyup', e => {
-                keys[e.key] = false;
+            document.addEventListener('keyup', e => {
+                const keyLower = e.key?.toLowerCase?.() ?? '';
+                keys[keyLower] = false;
                 keys[e.code] = false;
             });
 
@@ -563,6 +582,10 @@
             btnStart.addEventListener('click', () => startGame());
             btnRestart.addEventListener('click', () => restartGame());
             btnResume.addEventListener('click', () => resumeGame());
+            // 点击暂停遮罩空白区域也能恢复
+            pauseOverlay.addEventListener('click', (e) => {
+                if (e.target === pauseOverlay) resumeGame();
+            });
 
             // ==================== 地图生成 ====================
             function generateMap() {

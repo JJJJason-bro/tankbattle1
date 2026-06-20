@@ -682,7 +682,7 @@
                     };
                 }
 
-                collidesWithMap(dx, dy) {
+                collidesWithMap(dx, dy, skipTankCheck = false) {
                     const newX = this.x + dx;
                     const newY = this.y + dy;
                     const b = {
@@ -708,50 +708,34 @@
                             if (row < 0 || row >= ROWS || col < 0 || col >= COLS) continue;
                             const tile = map[row][col];
                             if (tile === BRICK || tile === STEEL || tile === BASE) {
-                                // 精确碰撞检测
-                                const tileRect = {
-                                    left: col * TILE_SIZE,
-                                    top: row * TILE_SIZE,
-                                    right: (col + 1) * TILE_SIZE,
-                                    bottom: (row + 1) * TILE_SIZE,
-                                };
-                                if (this.rectsOverlap(b, tileRect)) {
+                                if (this.rectOverlapTile(b, col, row)) {
                                     return true;
                                 }
                             }
-                            if (tile === WATER) {
-                                // 玩家可以通过水域（减速），敌人不能
-                                if (this.type !== 'player') {
-                                    const tileRect = {
-                                        left: col * TILE_SIZE,
-                                        top: row * TILE_SIZE,
-                                        right: (col + 1) * TILE_SIZE,
-                                        bottom: (row + 1) * TILE_SIZE,
-                                    };
-                                    if (this.rectsOverlap(b, tileRect)) {
-                                        return true;
-                                    }
+                            if (tile === WATER && this.type !== 'player') {
+                                if (this.rectOverlapTile(b, col, row)) {
+                                    return true;
                                 }
                             }
                         }
                     }
 
+                    if (skipTankCheck) return false;
+
                     // 与其他坦克碰撞
-                    const allTanks = this.type === 'player' ? enemies : [playerTank, ...enemies.filter(e =>
-                        e !== this && e.alive)];
                     if (this.type !== 'player') {
-                        // 检查与玩家的碰撞
                         if (playerTank && playerTank.alive && this.tanksCollide(newX, newY, playerTank)) {
                             return true;
                         }
-                        // 检查与其他敌人的碰撞
-                        for (const enemy of enemies) {
+                        for (let i = 0; i < enemies.length; i++) {
+                            const enemy = enemies[i];
                             if (enemy !== this && enemy.alive && this.tanksCollide(newX, newY, enemy)) {
                                 return true;
                             }
                         }
                     } else {
-                        for (const enemy of enemies) {
+                        for (let i = 0; i < enemies.length; i++) {
+                            const enemy = enemies[i];
                             if (enemy.alive && this.tanksCollide(newX, newY, enemy)) {
                                 return true;
                             }
@@ -759,6 +743,14 @@
                     }
 
                     return false;
+                }
+
+                rectOverlapTile(b, col, row) {
+                    const tl = col * TILE_SIZE;
+                    const tt = row * TILE_SIZE;
+                    const tr = tl + TILE_SIZE;
+                    const tb = tt + TILE_SIZE;
+                    return !(b.left >= tr || b.right <= tl || b.top >= tb || b.bottom <= tt);
                 }
 
                 tanksCollide(x, y, other) {
@@ -769,8 +761,7 @@
                 }
 
                 rectsOverlap(a, b) {
-                    return !(a.left >= b.right || a.right <= b.left || a.top >= b.bottom || a.bottom <= b
-                        .top);
+                    return !(a.left >= b.right || a.right <= b.left || a.top >= b.bottom || a.bottom <= b.top);
                 }
 
                 update() {
@@ -1336,6 +1327,69 @@
             }
 
             // ==================== 碰撞检测 ====================
+            // 推开重叠的坦克（防止互相卡死）
+            let overlapResolvePass = 0;
+            function clampTank(tank) {
+                if (tank.x - tank.half < 0) tank.x = tank.half;
+                if (tank.x + tank.half > WIDTH) tank.x = WIDTH - tank.half;
+                if (tank.y - tank.half < 0) tank.y = tank.half;
+                if (tank.y + tank.half > HEIGHT) tank.y = HEIGHT - tank.half;
+            }
+
+            function resolveTankOverlaps() {
+                overlapResolvePass = (overlapResolvePass + 1) % 3;
+                // 玩家 vs 敌人
+                if (playerTank && playerTank.alive) {
+                    for (const enemy of enemies) {
+                        if (!enemy.alive) continue;
+                        const dx = playerTank.x - enemy.x;
+                        const dy = playerTank.y - enemy.y;
+                        const dist = Math.sqrt(dx * dx + dy * dy);
+                        const minDist = playerTank.half + enemy.half;
+                        if (dist < minDist && dist > 0.001) {
+                            const nx = dx / dist;
+                            const ny = dy / dist;
+                            const push = (minDist - dist) / 2 + 1;
+                            playerTank.x += nx * push;
+                            playerTank.y += ny * push;
+                            enemy.x -= nx * push;
+                            enemy.y -= ny * push;
+                            clampTank(playerTank);
+                            clampTank(enemy);
+                        } else if (dist < 0.001) {
+                            playerTank.x += 2;
+                            enemy.x -= 2;
+                            clampTank(playerTank);
+                            clampTank(enemy);
+                        }
+                    }
+                }
+                // 敌人之间（每3帧处理一次，减少开销）
+                if (overlapResolvePass === 0) {
+                    for (let i = 0; i < enemies.length; i++) {
+                        if (!enemies[i].alive) continue;
+                        for (let j = i + 1; j < enemies.length; j++) {
+                            if (!enemies[j].alive) continue;
+                            const dx = enemies[i].x - enemies[j].x;
+                            const dy = enemies[i].y - enemies[j].y;
+                            const dist = Math.sqrt(dx * dx + dy * dy);
+                            const minDist = enemies[i].half + enemies[j].half;
+                            if (dist < minDist && dist > 0.001) {
+                                const nx = dx / dist;
+                                const ny = dy / dist;
+                                const push = (minDist - dist) / 2 + 1;
+                                enemies[i].x += nx * push;
+                                enemies[i].y += ny * push;
+                                enemies[j].x -= nx * push;
+                                enemies[j].y -= ny * push;
+                                clampTank(enemies[i]);
+                                clampTank(enemies[j]);
+                            }
+                        }
+                    }
+                }
+            }
+
             function checkBulletTankCollision(bullet, tank) {
                 const dx = bullet.x - tank.x;
                 const dy = bullet.y - tank.y;
@@ -1391,6 +1445,9 @@
                     }
                 }
 
+                // 解决重叠（在移动后立即分离）
+                resolveTankOverlaps();
+
                 // 更新敌人
                 for (const enemy of enemies) {
                     if (enemy.alive) {
@@ -1398,6 +1455,9 @@
                         updateEnemyAI(enemy);
                     }
                 }
+
+                // 敌人移动后再次检查重叠
+                resolveTankOverlaps();
 
                 // 更新子弹
                 for (const bullet of bullets) {

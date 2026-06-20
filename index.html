@@ -55,13 +55,15 @@ body::before { content:''; position:fixed; top:0; left:0; width:100%; height:100
 .btn-restart:hover { transform:translateY(-1px); box-shadow:0 5px 22px rgba(210,153,29,.5); }
 
 /* 移动端触摸控制器 */
-.mobile-controls { display:none; width:100%; max-width:400px; margin-top:4px; }
-.mobile-joystick-area { display:flex; justify-content:space-between; align-items:center; gap:16px; padding:0 8px; }
-.joystick-base { width:130px; height:130px; border-radius:50%; background:rgba(22,27,34,.78); border:2px solid rgba(255,255,255,.18); position:relative; touch-action:none; -webkit-tap-highlight-color:transparent; user-select:none; -webkit-user-select:none; box-shadow:0 0 18px rgba(0,0,0,.35), inset 0 0 30px rgba(255,255,255,.03); }
-.joystick-base::after { content:''; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:6px; height:6px; border-radius:50%; background:rgba(255,255,255,.2); pointer-events:none; }
-.joystick-knob { width:48px; height:48px; border-radius:50%; background:radial-gradient(circle at 40% 38%, rgba(248,81,73,.55), rgba(210,40,30,.2)); border:2px solid rgba(248,81,73,.45); position:absolute; top:50%; left:50%; margin-left:-24px; margin-top:-24px; pointer-events:none; box-shadow:0 4px 15px rgba(248,81,73,.25); transition:transform .1s ease-out; }
-.fire-btn { width:72px; height:72px; border-radius:50%; background:linear-gradient(135deg,#f85149,#b62324); border:2px solid rgba(255,255,255,.25); color:#fff; font-size:.75rem; font-weight:800; letter-spacing:2px; box-shadow:0 0 22px rgba(248,81,73,.35); display:flex; align-items:center; justify-content:center; cursor:pointer; -webkit-tap-highlight-color:transparent; touch-action:manipulation; user-select:none; -webkit-user-select:none; transition:transform .08s; }
-.fire-btn:active { transform:scale(.88); box-shadow:0 0 38px rgba(248,81,73,.6); }
+.mobile-controls { display:none; width:100%; max-width:500px; margin-top:4px; }
+.mobile-joystick-area { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:0 4px; }
+.joystick-base { width:170px; height:170px; border-radius:50%; background:rgba(22,27,34,.78); border:3px solid rgba(255,255,255,.2); position:relative; touch-action:none; -webkit-tap-highlight-color:transparent; user-select:none; -webkit-user-select:none; box-shadow:0 0 22px rgba(0,0,0,.4), inset 0 0 35px rgba(255,255,255,.03); }
+.joystick-base::after { content:''; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:8px; height:8px; border-radius:50%; background:rgba(255,255,255,.25); pointer-events:none; }
+/* 十字准星引导线 */
+.joystick-base::before { content:''; position:absolute; top:15%; left:50%; transform:translateX(-50%); width:2px; height:70%; background:linear-gradient(to bottom, rgba(255,255,255,.08), rgba(255,255,255,.04) 40%, rgba(255,255,255,.04) 60%, rgba(255,255,255,.08)); pointer-events:none; border-radius:1px; box-shadow: 58px 0 0 rgba(255,255,255,.04), -58px 0 0 rgba(255,255,255,.04); }
+.joystick-knob { width:58px; height:58px; border-radius:50%; background:radial-gradient(circle at 40% 38%, rgba(248,81,73,.6), rgba(200,30,20,.25)); border:2.5px solid rgba(248,81,73,.5); position:absolute; top:50%; left:50%; margin-left:-29px; margin-top:-29px; pointer-events:none; box-shadow:0 4px 18px rgba(248,81,73,.3); transition:transform .08s ease-out; }
+.fire-btn { width:82px; height:82px; border-radius:50%; background:linear-gradient(135deg,#f85149,#b62324); border:2.5px solid rgba(255,255,255,.28); color:#fff; font-size:.8rem; font-weight:800; letter-spacing:2px; box-shadow:0 0 26px rgba(248,81,73,.4); display:flex; align-items:center; justify-content:center; cursor:pointer; -webkit-tap-highlight-color:transparent; touch-action:manipulation; user-select:none; -webkit-user-select:none; transition:transform .08s; }
+.fire-btn:active { transform:scale(.85); box-shadow:0 0 42px rgba(248,81,73,.65); }
 
 /* 规则介绍 */
 .rules-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; text-align:left; margin:12px 0; }
@@ -385,14 +387,16 @@ document.addEventListener('keyup',e=>{
   if (!base || !knob || !fireBtn) return;
 
   let joyId = null;
-  const R = 65;        // 摇杆活动半径
-  const DZ = 10;       // 死区半径（防止轻微触碰就移动）
-  const KNOB_R = 24;   // 旋钮半径
+  let lastJoyDir = null;  // 方向滞后记忆
+  const R = 80;           // 摇杆活动半径（底座170px的一半是85，留边距）
+  const DZ = 16;          // 死区半径（手指几乎不移动时不触发）
+  const KNOB_R = 29;      // 旋钮半径（58px的一半）
 
   function resetJoystick() {
     joyId = null;
+    lastJoyDir = null;
     keys['ArrowUp'] = keys['ArrowDown'] = keys['ArrowLeft'] = keys['ArrowRight'] = false;
-    knob.style.transition = 'transform .12s ease-out';
+    knob.style.transition = 'transform .1s ease-out';
     knob.style.transform = 'translate(0px, 0px)';
   }
 
@@ -403,25 +407,62 @@ document.addEventListener('keyup',e=>{
     const dx = clientX - cx;
     const dy = clientY - cy;
     const dist = Math.hypot(dx, dy);
-    const maxTravel = R - KNOB_R - 3; // 旋钮不超出底座
+    const maxTravel = R - KNOB_R - 1;
     const clamp = Math.min(dist, maxTravel);
-    const angle = Math.atan2(dy, dx);
-    const kx = Math.cos(angle) * clamp;
-    const ky = Math.sin(angle) * clamp;
+    const angleRad = Math.atan2(dy, dx);
+    const kx = Math.cos(angleRad) * clamp;
+    const ky = Math.sin(angleRad) * clamp;
 
     knob.style.transition = 'none';
     knob.style.transform = `translate(${kx}px, ${ky}px)`;
 
+    // 死区内：全松
     if (dist < DZ) {
       keys['ArrowUp'] = keys['ArrowDown'] = keys['ArrowLeft'] = keys['ArrowRight'] = false;
-    } else {
-      // 四向 + 斜向映射，阈值把方向分成四个象限
-      const th = DZ;
-      keys['ArrowUp']    = dy < -th;
-      keys['ArrowDown']  = dy > th;
-      keys['ArrowLeft']  = dx < -th;
-      keys['ArrowRight'] = dx > th;
+      lastJoyDir = null;
+      return;
     }
+
+    // ★ 角度扇形判定（4个90°扇区）+ 滞后防抖
+    // 角度换算：atan2返回 -PI..PI, 0=右, PI/2=下, ±PI=左, -PI/2=上
+    // 我们映射到0..360: 右=0, 下=90, 左=180, 上=270
+    let angle = angleRad * 180 / Math.PI; // -180..180
+    if (angle < 0) angle += 360;          // 0..360
+
+    // 确定当前扇区
+    let newDir = null;
+    if (angle >= 315 || angle < 45)       newDir = 'ArrowRight';
+    else if (angle >= 45 && angle < 135)  newDir = 'ArrowDown';
+    else if (angle >= 135 && angle < 225) newDir = 'ArrowLeft';
+    else                                  newDir = 'ArrowUp';   // 225..315
+
+    // ★ 滞后逻辑：切换方向需要跨过扇区边界至少12°的"确认区"
+    if (lastJoyDir && lastJoyDir !== newDir) {
+      // 计算当前角度离新扇区边界的距离
+      let boundaryDist = 0;
+      if (newDir === 'ArrowRight') {
+        boundaryDist = Math.min(angle - 0, 360 - angle); // 离0°的距离
+        // 实际上应该算离最近边界的距离
+        const d1 = angle < 180 ? angle : 360 - angle;
+        boundaryDist = angle < 45 ? angle : (angle > 315 ? 360 - angle : 99);
+      }
+      // 简化：计算到新扇区中心的距离，若<33°说明偏边界，保持旧方向
+      const centers = { ArrowRight: 0, ArrowDown: 90, ArrowLeft: 180, ArrowUp: 270 };
+      let toCenter = Math.abs(angle - centers[newDir]);
+      if (toCenter > 180) toCenter = 360 - toCenter;
+      // 扇区半宽45°，边界12°滞后区 → 必须进入新扇区至少12°才切换
+      if (toCenter > 33) {
+        // 手指离新扇区中心太远（靠近边界），保持旧方向
+        newDir = lastJoyDir;
+      }
+    }
+    lastJoyDir = newDir;
+
+    // 只输出单一方向（避免游戏else-if链的方向优先级混乱）
+    keys['ArrowUp']    = (newDir === 'ArrowUp');
+    keys['ArrowDown']  = (newDir === 'ArrowDown');
+    keys['ArrowLeft']  = (newDir === 'ArrowLeft');
+    keys['ArrowRight'] = (newDir === 'ArrowRight');
   }
 
   base.addEventListener('pointerdown', e => {

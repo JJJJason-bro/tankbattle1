@@ -833,6 +833,7 @@
                     if (this.flashTimer > 0 && this.flashTimer % 2 === 0) return;
 
                     ctx.save();
+                    try {
                     ctx.translate(this.x, this.y);
 
                     // 旋转角度
@@ -844,8 +845,8 @@
 
                     // 履带
                     ctx.fillStyle = '#1a1a1a';
-                    ctx.fillRect(-h, -h + 2, s, 6); // 左履带
-                    ctx.fillRect(-h, h - 8, s, 6); // 右履带
+                    ctx.fillRect(-h, -h + 2, s, 6);
+                    ctx.fillRect(-h, h - 8, s, 6);
 
                     // 履带纹理
                     ctx.fillStyle = '#2a2a2a';
@@ -889,8 +890,7 @@
                     // 炮管尖端
                     ctx.fillStyle = '#333';
                     ctx.fillRect(-barrelWidth / 2 - 1, -turretSize - barrelLen, barrelWidth + 2, 4);
-
-                    ctx.restore();
+                    } finally { ctx.restore(); }
 
                     // 生命值指示（仅重型坦克）
                     if (this.health > 1) {
@@ -1098,6 +1098,7 @@
                     if (this.timer < 120 && Math.floor(this.blinkTimer / 10) % 2 === 0) return;
 
                     ctx.save();
+                    try {
                     ctx.translate(this.x, this.y);
 
                     // 光晕
@@ -1136,8 +1137,7 @@
                     ctx.textBaseline = 'middle';
                     const icons = { speed: '⚡', rapid: '🔥', shield: '🛡️', life: '❤️' };
                     ctx.fillText(icons[this.type], 0, 1);
-
-                    ctx.restore();
+                    } finally { ctx.restore(); }
                 }
 
                 apply(player) {
@@ -1595,18 +1595,16 @@
             }
 
             function render() {
-                ctx.clearRect(0, 0, WIDTH, HEIGHT);
-
-                // 震屏偏移
-                let shakeX = 0,
-                    shakeY = 0;
+                // 先用 setTransform 重置矩阵（防栈泄漏的核心）
+                ctx.setTransform(1, 0, 0, 1, 0, 0);
+                try {
+                let shakeX = 0, shakeY = 0;
                 if (shakeTimer > 0) {
                     shakeX = (Math.random() - 0.5) * shakeIntensity * (shakeTimer / 15);
                     shakeY = (Math.random() - 0.5) * shakeIntensity * (shakeTimer / 15);
                 }
-
-                ctx.save();
-                ctx.translate(shakeX, shakeY);
+                ctx.setTransform(1, 0, 0, 1, shakeX, shakeY);
+                ctx.clearRect(-shakeX, -shakeY, WIDTH + 4, HEIGHT + 4);
 
                 // 绘制地图
                 for (let row = 0; row < ROWS; row++) {
@@ -1622,7 +1620,6 @@
                         } else if (tile === WATER) {
                             drawWater(x, y);
                         } else if (tile === TREE) {
-                            // 先绘制地面
                             ctx.fillStyle = '#1a1a1a';
                             ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
                         } else if (tile === BASE) {
@@ -1673,7 +1670,7 @@
                     exp.draw(ctx);
                 }
 
-                ctx.restore();
+                ctx.setTransform(1, 0, 0, 1, 0, 0); // 重置变换
 
                 // 绘制小地图
                 drawMinimap();
@@ -1683,6 +1680,10 @@
                 ctx.font = 'bold 11px "Microsoft YaHei", sans-serif';
                 ctx.textAlign = 'right';
                 ctx.fillText(`剩余敌人: ${enemiesRemaining}`, WIDTH - 16, HEIGHT - 10);
+                } catch (e) {
+                    // 渲染异常时确保变换重置
+                    ctx.setTransform(1, 0, 0, 1, 0, 0);
+                }
             }
 
             function drawBrick(x, y) {

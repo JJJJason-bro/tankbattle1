@@ -164,7 +164,6 @@
             pointer-events: none;
             opacity: 0;
             visibility: hidden;
-            transition: opacity 0.25s, visibility 0.25s;
         }
 
         .overlay.active {
@@ -523,8 +522,8 @@
                     e.preventDefault();
                 }
                 // 移动键 — 同时用 key 和 code 确保兼容
-                const keyLower = e.key?.toLowerCase?.() ?? '';
-                keys[keyLower] = true;
+                const kl = (typeof e.key === 'string') ? e.key.toLowerCase() : '';
+                if (kl) keys[kl] = true;
                 keys[e.code] = true;
                 // 暂停/继续 — 用 code 避免输入法问题
                 if (e.code === 'KeyP') {
@@ -548,8 +547,8 @@
                 }
             });
             document.addEventListener('keyup', e => {
-                const keyLower = e.key?.toLowerCase?.() ?? '';
-                keys[keyLower] = false;
+                const kl = (typeof e.key === 'string') ? e.key.toLowerCase() : '';
+                if (kl) keys[kl] = false;
                 keys[e.code] = false;
             });
 
@@ -840,7 +839,7 @@
                     ctx.translate(this.x, this.y);
 
                     // 旋转角度
-                    const angles = [-Math.PI / 2, 0, Math.PI / 2, Math.PI]; // UP, RIGHT, DOWN, LEFT
+                    const angles = [0, Math.PI / 2, Math.PI, -Math.PI / 2]; // UP, RIGHT, DOWN, LEFT
                     ctx.rotate(angles[this.direction]);
 
                     const s = this.size;
@@ -1814,7 +1813,7 @@
 
                 // 创建玩家坦克
                 const playerX = WIDTH / 2;
-                const playerY = HEIGHT - TILE_SIZE * 1.5;
+                const playerY = HEIGHT - TILE_SIZE * 3.5;
                 playerTank = new Tank(playerX, playerY, UP, 'player', '#4ecdc4');
                 playerTank.speed = 1.8;
 
@@ -1877,7 +1876,7 @@
             function respawnPlayer() {
                 // 短暂无敌后重生
                 const playerX = WIDTH / 2;
-                const playerY = HEIGHT - TILE_SIZE * 1.5;
+                const playerY = HEIGHT - TILE_SIZE * 3.5;
                 playerTank = new Tank(playerX, playerY, UP, 'player', '#4ecdc4');
                 playerTank.flashTimer = 60; // 1秒无敌时间
                 playerTank.speed = 1.8;
@@ -1910,7 +1909,7 @@
             function init() {
                 generateMap();
                 // 初始渲染（无玩家坦克）
-                playerTank = new Tank(WIDTH / 2, HEIGHT - TILE_SIZE * 1.5, UP, 'player', '#4ecdc4');
+                playerTank = new Tank(WIDTH / 2, HEIGHT - TILE_SIZE * 3.5, UP, 'player', '#4ecdc4');
                 render();
                 // 显示开始画面
                 startOverlay.classList.add('active');

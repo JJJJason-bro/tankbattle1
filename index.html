@@ -162,10 +162,15 @@
             align-items: center;
             z-index: 10;
             pointer-events: none;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.25s, visibility 0.25s;
         }
 
         .overlay.active {
             pointer-events: all;
+            opacity: 1;
+            visibility: visible;
         }
 
         .overlay-content {
@@ -796,7 +801,8 @@
                     this.shootCooldown = this.shootDelay;
                     let bx = this.x;
                     let by = this.y;
-                    const offset = this.half + 4;
+                    // 炮管尖端 = turretSize(14) + barrelLen(20) + 2px余量
+                    const offset = 36;
                     switch (this.direction) {
                         case UP:
                             by -= offset;
